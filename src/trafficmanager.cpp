@@ -36,6 +36,7 @@
 #include "booksim_config.hpp"
 #include "trafficmanager.hpp"
 #include "batchtrafficmanager.hpp"
+#include "traceinject.hpp"
 #include "random_utils.hpp" 
 #include "vc.hpp"
 #include "packet_reply_info.hpp"
@@ -44,6 +45,11 @@ TrafficManager * TrafficManager::New(Configuration const & config,
                                      vector<Network *> const & net)
 {
     TrafficManager * result = NULL;
+    string traffic = config.GetStr("traffic");
+    if(traffic == "trace") {
+        result = new TraceTrafficManager(config, net);
+        return result;
+    }
     string sim_type = config.GetStr("sim_type");
     if((sim_type == "latency") || (sim_type == "throughput")) {
         result = new TrafficManager(config, net);
@@ -228,6 +234,11 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
     _injection_process.resize(_classes);
 
     for(int c = 0; c < _classes; ++c) {
+        if(_traffic[c] == "trace") {
+            _traffic_pattern[c] = NULL;
+            _injection_process[c] = NULL;
+            continue;
+        }
         _traffic_pattern[c] = TrafficPattern::New(_traffic[c], _nodes, &config);
         _injection_process[c] = InjectionProcess::New(injection_process[c], _nodes, _load[c], &config);
     }
@@ -1638,8 +1649,12 @@ bool TrafficManager::Run( )
         _ClearStats( );
 
         for(int c = 0; c < _classes; ++c) {
-            _traffic_pattern[c]->reset();
-            _injection_process[c]->reset();
+            if(_traffic_pattern[c]) {
+                _traffic_pattern[c]->reset();
+            }
+            if(_injection_process[c]) {
+                _injection_process[c]->reset();
+            }
         }
 
         if ( !_SingleSim( ) ) {
